@@ -1,0 +1,39 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# AutoStr – docker-compose
+#
+# Quick start:
+#   docker compose run --rm autostr /data/input.mp4
+#
+# With options:
+#   docker compose run --rm autostr /data/input.mp4 --model large-v2 \
+#       --start-delay 150 --max-chars 18
+#
+# GPU variant: uncomment the `deploy` section below and use the cuda image tag.
+# ─────────────────────────────────────────────────────────────────────────────
+
+services:
+  autostr:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        # Uncomment for GPU support:
+        # BASE_IMAGE: pytorch/pytorch:2.2.0-cuda11.8-cudnn8-runtime
+        WHISPER_MODEL: medium
+    image: autostr:latest
+    volumes:
+      # Mount your local video directory to /data inside the container.
+      # Change ./videos to wherever your video files live.
+      - ./videos:/data
+    environment:
+      - PYTHONUNBUFFERED=1
+    # GPU support: uncomment the lines below and ensure nvidia-docker is installed.
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: 1
+    #           capabilities: [gpu]
+    entrypoint: ["python", "/app/main.py"]
+    command: ["--help"]
