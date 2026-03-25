@@ -1,22 +1,21 @@
-"""Speech transcription using faster-whisper."""
+"""faster-whisper transcription stage."""
 
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
+
+from faster_whisper import WhisperModel
 
 logger = logging.getLogger(__name__)
 
 
 @dataclass
 class TranscriptSegment:
-    """A single transcription segment."""
-
-    start: float          # seconds
-    end: float            # seconds
+    start: float
+    end: float
     text: str
-    words: list[dict] = field(default_factory=list)
 
 
 def transcribe(
@@ -25,83 +24,35 @@ def transcribe(
     language: str = "zh",
     device: str = "cpu",
     compute_type: str = "int8",
-    beam_size: int = 5,
-    vad_filter: bool = True,
 ) -> list[TranscriptSegment]:
-    """Transcribe *audio_path* with faster-whisper.
+    logger.info("Loading model: %s (device=%s, compute_type=%s)", model_size, device, compute_type)
 
-    Parameters
-    ----------
-    audio_path:
-        Path to a WAV file (mono, 16 kHz recommended).
-    model_size:
-        Whisper model size: ``tiny``, ``base``, ``small``, ``medium``,
-        ``large-v2``, ``large-v3``.  Default ``medium`` gives a good
-        balance between speed and accuracy for Chinese.
-    language:
-        BCP-47 language code.  Use ``"zh"`` for Mandarin Chinese.
-    device:
-        ``"cpu"`` or ``"cuda"``.
-    compute_type:
-        Quantisation type – ``"int8"`` for CPU, ``"float16"`` for GPU.
-    beam_size:
-        Beam width for decoding.
-    vad_filter:
-        Enable faster-whisper's built-in VAD filter to remove silence
-        segments and reduce hallucinations.
-
-    Returns
-    -------
-    List[TranscriptSegment]
-        Ordered list of transcription segments with timing.
-    """
-    try:
-        from faster_whisper import WhisperModel
-    except ImportError as exc:
-        raise ImportError(
-            "faster-whisper is not installed. "
-            "Run: pip install faster-whisper"
-        ) from exc
-
-    audio_path = Path(audio_path)
-    if not audio_path.exists():
-        raise FileNotFoundError(f"Audio file not found: {audio_path}")
-
-    logger.info(
-        "Loading faster-whisper model '%s' on %s (%s)…",
-        model_size, device, compute_type,
+    model = WhisperModel(
+        model_size,
+        device=device,
+        compute_type=compute_type,
+        download_root="/models",
     )
-    model = WhisperModel(model_size, device=device, compute_type=compute_type)
 
-    logger.info("Transcribing %s …", audio_path)
-    segments_iter, info = model.transcribe(
+    logger.info("Model loaded. Starting transcription...")
+
+    segments_iter, _info = model.transcribe(
         str(audio_path),
         language=language,
-        beam_size=beam_size,
-        word_timestamps=True,
-        vad_filter=vad_filter,
-        vad_parameters={"min_silence_duration_ms": 300},
-    )
-    logger.info(
-        "Detected language '%s' (probability %.2f)",
-        info.language, info.language_probability,
+        beam_size=5,
     )
 
-    segments: list[TranscriptSegment] = []
-    for seg in segments_iter:
-        words = [
-            {"word": w.word, "start": w.start, "end": w.end, "probability": w.probability}
-            for w in (seg.words or [])
-        ]
-        segments.append(
+    results: list[TranscriptSegment] = []
+    for idx, seg in enumerate(segments_iter, start=1):
+        text = (seg.text or "").strip()
+        logger.info("Transcribed segment %d: %.2f -> %.2f", idx, seg.start, seg.end)
+        results.append(
             TranscriptSegment(
-                start=seg.start,
-                end=seg.end,
-                text=seg.text.strip(),
-                words=words,
+                start=float(seg.start),
+                end=float(seg.end),
+                text=text,
             )
         )
-        logger.debug("[%.2f → %.2f] %s", seg.start, seg.end, seg.text.strip())
 
-    logger.info("Transcription complete – %d segments", len(segments))
-    return segments
+    logger.info("Transcription complete. %d segments generated.", len(results))
+    return results

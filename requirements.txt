@@ -2,3 +2,5 @@ faster-whisper
 whisperx
 torch
 numpy
+tqdm
+pytest
