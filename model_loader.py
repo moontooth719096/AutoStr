@@ -1,17 +1,16 @@
 import os
-import requests
+from pathlib import Path
 
-def load_model(model_name, model_cache_dir='/models'):
-    local_model_path = os.path.join(model_cache_dir, model_name)
-    if os.path.exists(local_model_path):
-        return local_model_path  # Load from local cache
-    
-    # If model not found locally, download it
-    url = f"https://example.com/models/{model_name}"
-    response = requests.get(url)
-    if response.status_code == 200:
-        with open(local_model_path, 'wb') as f:
-            f.write(response.content)
-        return local_model_path
-    else:
-        raise FileNotFoundError(f"Model {model_name} not found.")
+from faster_whisper import WhisperModel
+
+MODEL_DIR = Path(os.getenv("MODEL_DIR", "/models"))
+
+def load_whisper_model(model_name: str):
+    MODEL_DIR.mkdir(parents=True, exist_ok=True)
+
+    return WhisperModel(
+        model_name,
+        device=os.getenv("WHISPER_DEVICE", "cpu"),
+        compute_type=os.getenv("WHISPER_COMPUTE_TYPE", "int8"),
+        download_root=str(MODEL_DIR),
+    )

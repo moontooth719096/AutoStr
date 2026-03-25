@@ -1,39 +1,17 @@
-# ─────────────────────────────────────────────────────────────────────────────
-# AutoStr – docker-compose
-#
-# Quick start:
-#   docker compose run --rm autostr /data/input.mp4
-#
-# With options:
-#   docker compose run --rm autostr /data/input.mp4 --model large-v2 \
-#       --start-delay 150 --max-chars 18
-#
-# GPU variant: uncomment the `deploy` section below and use the cuda image tag.
-# ─────────────────────────────────────────────────────────────────────────────
-
 services:
   autostr:
-    build:
-      context: .
-      dockerfile: Dockerfile
-      args:
-        # Uncomment for GPU support:
-        # BASE_IMAGE: pytorch/pytorch:2.2.0-cuda11.8-cudnn8-runtime
-        WHISPER_MODEL: medium
+    build: .
     image: autostr:latest
     volumes:
-      # Mount your local video directory to /data inside the container.
-      # Change ./videos to wherever your video files live.
-      - ./videos:/data
+      - ./models:/models
+      - ./input:/input
+      - ./output:/output
     environment:
-      - PYTHONUNBUFFERED=1
-    # GPU support: uncomment the lines below and ensure nvidia-docker is installed.
-    # deploy:
-    #   resources:
-    #     reservations:
-    #       devices:
-    #         - driver: nvidia
-    #           count: 1
-    #           capabilities: [gpu]
-    entrypoint: ["python", "/app/main.py"]
-    command: ["--help"]
+      - MODEL_DIR=/models
+      - HF_HOME=/models/huggingface
+      - XDG_CACHE_HOME=/models/cache
+      - WHISPER_DEVICE=cpu
+      - WHISPER_COMPUTE_TYPE=int8
+      - WHISPER_MODEL=small
+      - START_DELAY_MS=150
+    command: ["--input", "/input/test.mp4", "--output", "/output/test.srt"]
