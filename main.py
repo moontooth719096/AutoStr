@@ -48,7 +48,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument(
         "-o", "--output",
         default=None,
-        help="Output SRT file path.  Defaults to <video>.srt.",
+        help="Output SRT file path. Defaults to <video>.srt.",
     )
     p.add_argument(
         "--keep-audio",
@@ -81,7 +81,7 @@ def build_parser() -> argparse.ArgumentParser:
         default="int8",
         choices=["int8", "float16", "float32"],
         dest="compute_type",
-        help="Quantisation type.  Use int8 for CPU, float16 for GPU (default: %(default)s).",
+        help="Quantisation type. Use int8 for CPU, float16 for GPU.",
     )
 
     # ── Alignment ────────────────────────────────────────────────────────────
@@ -90,7 +90,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--no-whisperx",
         action="store_false",
         dest="use_whisperx",
-        help="Disable WhisperX fine-grained alignment (use faster-whisper timestamps only).",
+        help="Disable WhisperX fine-grained alignment.",
     )
 
     # ── Reflow ───────────────────────────────────────────────────────────────
@@ -100,7 +100,7 @@ def build_parser() -> argparse.ArgumentParser:
         type=int,
         default=16,
         dest="max_chars_per_line",
-        help="Max Chinese characters per subtitle line (default: %(default)s).",
+        help="Max Chinese characters per subtitle line.",
     )
     rf.add_argument(
         "--start-delay",
@@ -108,10 +108,7 @@ def build_parser() -> argparse.ArgumentParser:
         default=0,
         dest="start_delay_ms",
         metavar="MS",
-        help=(
-            "Milliseconds to add to every subtitle start time. "
-            "Set to 100–200 if subtitles appear too early (default: %(default)s)."
-        ),
+        help="Milliseconds to add to every subtitle start time.",
     )
     rf.add_argument(
         "--global-shift",
@@ -119,33 +116,28 @@ def build_parser() -> argparse.ArgumentParser:
         default=0,
         dest="global_shift_ms",
         metavar="MS",
-        help=(
-            "Global timing shift in ms applied to all start and end times. "
-            "Positive = later, negative = earlier (default: %(default)s)."
-        ),
+        help="Shift all subtitle times by N ms.",
     )
     rf.add_argument(
         "--min-duration",
         type=float,
         default=0.8,
         dest="min_duration",
-        metavar="SEC",
-        help="Minimum subtitle display duration in seconds (default: %(default)s).",
+        help="Minimum subtitle display duration.",
     )
     rf.add_argument(
         "--max-duration",
         type=float,
         default=7.0,
         dest="max_duration",
-        metavar="SEC",
-        help="Maximum subtitle display duration in seconds (default: %(default)s).",
+        help="Maximum subtitle display duration.",
     )
 
     # ── Logging ──────────────────────────────────────────────────────────────
     p.add_argument(
         "-v", "--verbose",
         action="store_true",
-        help="Enable verbose (DEBUG) logging.",
+        help="Enable DEBUG logging.",
     )
 
     return p
@@ -169,6 +161,7 @@ def main(argv: list[str] | None = None) -> int:
     from autostr.pipeline import run
 
     try:
+        print("Starting AutoStr pipeline...", flush=True)
         output_srt = run(
             video_path=video_path,
             output_srt=args.output,
