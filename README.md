@@ -58,17 +58,20 @@ docker run --rm -v /path/to/your/videos:/data autostr \
 ### 3 – Using docker compose
 
 ```bash
-# Create a videos directory and put your files there
-mkdir -p videos
-cp /path/to/input.mp4 videos/
+# Create input/output directories and put your files there
+mkdir -p input output
+cp /path/to/input.mp4 input/test.mp4
 
 # Run
-docker compose run --rm autostr /data/input.mp4
+docker compose run --rm autostr
 
 # With options
 docker compose run --rm autostr \
-    /data/input.mp4 --start-delay 150 --max-chars 18 --model large-v2
+  /input/test.mp4 -o /output/test.srt --start-delay 150 --max-chars 18 --model large-v2
 ```
+
+The compose service mounts `./input` to `/input` and `./output` to `/output`,
+so the video path passed to AutoStr must use `/input/...`.
 
 ---
 
@@ -184,6 +187,31 @@ docker run --rm -v /data:/data autostr /data/input.mp4 --min-duration 1.2
 | GPU available | `--device cuda --compute-type float16 --model large-v3` |
 | Fine-grained word alignment | Keep WhisperX enabled (default) |
 | Skip WhisperX (faster) | `--no-whisperx` |
+
+---
+
+## Troubleshooting SRT uploads
+
+If YouTube or another platform reports errors for specific subtitle lines, the
+problem is usually SRT formatting rather than the transcript text itself.
+
+Check that every subtitle block has this exact structure:
+
+1. A numeric subtitle index.
+2. A time range line in the form `00:00:00,000 --> 00:00:00,000`.
+3. One or more subtitle text lines.
+4. A blank line before the next block.
+
+Common causes of import errors:
+
+- Orphan text lines without an index or time range.
+- Missing blank lines between subtitle blocks.
+- Broken numbering after manual edits.
+- Non-SRT timecode format.
+
+AutoStr writes standard SRT output, but manual post-editing can break the
+structure. If a platform flags a few line numbers, inspect the surrounding
+blocks first.
 
 ---
 
