@@ -28,31 +28,71 @@ first run is faster.  To pre-download a different model:
 docker build --build-arg WHISPER_MODEL=large-v2 -t autostr:large .
 ```
 
+Model files are cached under `/models` in the container by default.  Keep the
+container path fixed as `/models`; only the host-side folder changes.
+
+If you already have a local model cache, mount it to `/models` and you do not
+need to pass `--model-dir`.
+
 ### 2 – Run the pipeline
 
 ```bash
-# Basic usage – subtitles written to /data/input.srt
-docker run --rm -v /path/to/your/videos:/data autostr /data/input.mp4
+# Basic usage – subtitles written to /output/input.srt
+docker run --rm \
+  -v /path/to/your/models:/models \
+  -v /path/to/your/videos:/input \
+  -v /path/to/your/output:/output \
+  autostr /input/input.mp4
 
 # Custom output path
-docker run --rm -v /path/to/your/videos:/data autostr \
-    /data/input.mp4 -o /data/subtitles.srt
+docker run --rm \
+  -v /path/to/your/models:/models \
+  -v /path/to/your/videos:/input \
+  -v /path/to/your/output:/output \
+  autostr /input/input.mp4 -o /output/subtitles.srt
+
+# Use a local model cache instead of downloading again
+docker run --rm \
+  -v /path/to/your/models:/models \
+  -v /path/to/your/videos:/input \
+  -v /path/to/your/output:/output \
+  autostr /input/input.mp4
 
 # Fix subtitles that appear too early (add 150 ms delay)
-docker run --rm -v /path/to/your/videos:/data autostr \
-    /data/input.mp4 --start-delay 150
+docker run --rm \
+  -v /path/to/your/models:/models \
+  -v /path/to/your/videos:/input \
+  -v /path/to/your/output:/output \
+  autostr /input/input.mp4 --start-delay 150
 
 # Shift everything 500 ms later (e.g. entire track is off-sync)
-docker run --rm -v /path/to/your/videos:/data autostr \
-    /data/input.mp4 --global-shift 500
+docker run --rm \
+  -v /path/to/your/models:/models \
+  -v /path/to/your/videos:/input \
+  -v /path/to/your/output:/output \
+  autostr /input/input.mp4 --global-shift 500
 
 # Use a larger model for better accuracy
-docker run --rm -v /path/to/your/videos:/data autostr \
-    /data/input.mp4 --model large-v2
+docker run --rm \
+  -v /path/to/your/models:/models \
+  -v /path/to/your/videos:/input \
+  -v /path/to/your/output:/output \
+  autostr /input/input.mp4 --model large-v2
 
 # Verbose output
-docker run --rm -v /path/to/your/videos:/data autostr \
-    /data/input.mp4 -v
+docker run --rm \
+  -v /path/to/your/models:/models \
+  -v /path/to/your/videos:/input \
+  -v /path/to/your/output:/output \
+  autostr /input/input.mp4 -v
+
+# Batch scan: process every video in /input that does not yet have a matching
+# .srt file in /output
+docker run --rm \
+  -v /path/to/your/models:/models \
+  -v /path/to/your/input:/input \
+  -v /path/to/your/output:/output \
+  autostr --batch --input-dir /input --output-dir /output
 ```
 
 ### 3 – Using docker compose
@@ -68,10 +108,16 @@ docker compose run --rm autostr
 # With options
 docker compose run --rm autostr \
   /input/test.mp4 -o /output/test.srt --start-delay 150 --max-chars 18 --model large-v2
+
+# Batch scan the mounted input folder and fill in missing subtitles only
+docker compose run --rm autostr \
+  --batch --input-dir /input --output-dir /output
 ```
 
-The compose service mounts `./input` to `/input` and `./output` to `/output`,
-so the video path passed to AutoStr must use `/input/...`.
+The compose service mounts `./input` to `/input`, `./output` to `/output`, and
+`./models` to `/models`, so the container-side paths stay fixed.
+If you want different host folders, change only the left-hand side of each
+mount.
 
 ---
 
@@ -89,8 +135,10 @@ docker build \
 
 ```bash
 docker run --rm --gpus all \
-  -v /path/to/videos:/data \
-  autostr:cuda /data/input.mp4 --device cuda --compute-type float16
+  -v /path/to/models:/models \
+  -v /path/to/videos:/input \
+  -v /path/to/output:/output \
+  autostr:cuda /input/input.mp4 --device cuda --compute-type float16
 ```
 
 ---
@@ -98,7 +146,8 @@ docker run --rm --gpus all \
 ## All CLI options
 
 ```
-usage: autostr [-h] [-o OUTPUT] [--keep-audio]
+usage: autostr [-h] [-o OUTPUT] [--batch] [--input-dir INPUT_DIR]
+               [--output-dir OUTPUT_DIR] [--keep-audio]
                [--model {tiny,base,small,medium,large-v2,large-v3}]
                [--language LANGUAGE] [--device {cpu,cuda}]
                [--compute-type {int8,float16,float32}]
@@ -107,14 +156,19 @@ usage: autostr [-h] [-o OUTPUT] [--keep-audio]
                [--start-delay MS] [--global-shift MS]
                [--min-duration SEC] [--max-duration SEC]
                [-v]
-               video
+               [video]
 
 positional arguments:
   video                Input video (or audio) file path.
 
 I/O:
   -o, --output         Output SRT file path.  Defaults to <video>.srt.
+  --batch              Scan an input folder and process files whose matching
+                       SRT is missing.
+  --input-dir          Batch mode input directory to scan recursively.
+  --output-dir         Batch mode output directory for generated SRT files.
   --keep-audio         Keep the intermediate WAV audio file.
+  --model-dir          Whisper model cache directory.
 
 ASR / transcription:
   --model              faster-whisper model size (default: medium).
@@ -150,7 +204,11 @@ This is the most common problem.  Causes include:
 
 ```bash
 # Add 100–200 ms start delay
-docker run --rm -v /data:/data autostr /data/input.mp4 --start-delay 150
+docker run --rm \
+  -v /path/to/your/models:/models \
+  -v /path/to/your/videos:/input \
+  -v /path/to/your/output:/output \
+  autostr /input/input.mp4 --start-delay 150
 ```
 
 If only the first few minutes are off, use `--start-delay`.  
@@ -160,21 +218,33 @@ If the *entire* file is off by a consistent amount, prefer `--global-shift`.
 
 ```bash
 # Negative global shift moves subtitles earlier
-docker run --rm -v /data:/data autostr /data/input.mp4 --global-shift -200
+docker run --rm \
+  -v /path/to/your/models:/models \
+  -v /path/to/your/videos:/input \
+  -v /path/to/your/output:/output \
+  autostr /input/input.mp4 --global-shift -200
 ```
 
 ### Subtitles are too long / hard to read
 
 ```bash
 # Reduce max characters per line (default is 16)
-docker run --rm -v /data:/data autostr /data/input.mp4 --max-chars 14
+docker run --rm \
+  -v /path/to/your/models:/models \
+  -v /path/to/your/videos:/input \
+  -v /path/to/your/output:/output \
+  autostr /input/input.mp4 --max-chars 14
 ```
 
 ### Subtitles flicker (too short on screen)
 
 ```bash
 # Increase minimum display duration
-docker run --rm -v /data:/data autostr /data/input.mp4 --min-duration 1.2
+docker run --rm \
+  -v /path/to/your/models:/models \
+  -v /path/to/your/videos:/input \
+  -v /path/to/your/output:/output \
+  autostr /input/input.mp4 --min-duration 1.2
 ```
 
 ### Improving accuracy

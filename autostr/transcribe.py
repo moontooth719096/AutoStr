@@ -6,7 +6,7 @@ import logging
 from dataclasses import dataclass
 from pathlib import Path
 
-from faster_whisper import WhisperModel
+from model_loader import load_whisper_model
 
 logger = logging.getLogger(__name__)
 
@@ -21,17 +21,18 @@ class TranscriptSegment:
 def transcribe(
     audio_path: str | Path,
     model_size: str = "medium",
+    model_dir: str | Path | None = None,
     language: str = "zh",
     device: str = "cpu",
     compute_type: str = "int8",
 ) -> list[TranscriptSegment]:
     logger.info("Loading model: %s (device=%s, compute_type=%s)", model_size, device, compute_type)
 
-    model = WhisperModel(
+    model = load_whisper_model(
         model_size,
+        model_dir=model_dir,
         device=device,
         compute_type=compute_type,
-        download_root="/models",
     )
 
     logger.info("Model loaded. Starting transcription...")
