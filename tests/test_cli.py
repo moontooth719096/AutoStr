@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import sys
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 
@@ -17,6 +17,10 @@ def test_parser_defaults():
     parser = build_parser()
     args = parser.parse_args(["input.mp4"])
     assert args.video == "input.mp4"
+    assert args.batch is False
+    assert args.input_dir is None
+    assert args.output_dir is None
+    assert args.model_dir is None
     assert args.model_size == "medium"
     assert args.language == "zh"
     assert args.device == "cpu"
@@ -49,6 +53,21 @@ def test_parser_global_shift_negative():
     assert args.global_shift_ms == -300
 
 
+def test_parser_batch_mode():
+    parser = build_parser()
+    args = parser.parse_args(["--batch", "--input-dir", "input", "--output-dir", "output"])
+    assert args.batch is True
+    assert args.video is None
+    assert args.input_dir == "input"
+    assert args.output_dir == "output"
+
+
+def test_parser_model_dir():
+    parser = build_parser()
+    args = parser.parse_args(["video.mp4", "--model-dir", "D:/models"])
+    assert args.model_dir == "D:/models"
+
+
 def test_main_missing_file(capsys):
     ret = main(["nonexistent_file_xyz.mp4"])
     assert ret == 1
@@ -68,3 +87,20 @@ def test_main_calls_pipeline(tmp_path):
     call_kwargs = mock_run.call_args[1]
     assert call_kwargs["start_delay_ms"] == 100
     assert call_kwargs["model_size"] == "medium"
+    assert call_kwargs["model_dir"] is None
+
+
+def test_main_batch_mode_calls_batch_pipeline(tmp_path):
+    input_dir = tmp_path / "input"
+    output_dir = tmp_path / "output"
+    input_dir.mkdir()
+    output_dir.mkdir()
+
+    with patch("autostr.pipeline.run_missing_subtitles", return_value=[output_dir / "test.srt"]) as mock_run:
+        ret = main(["--batch", "--input-dir", str(input_dir), "--output-dir", str(output_dir)])
+
+    assert ret == 0
+    mock_run.assert_called_once()
+    call_kwargs = mock_run.call_args[1]
+    assert call_kwargs["input_dir"] == input_dir
+    assert call_kwargs["output_dir"] == output_dir

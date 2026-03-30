@@ -22,6 +22,14 @@ Apply a global timing shift (shift everything 500 ms later)::
 Specify output path and control line length::
 
     python main.py input.mp4 -o my_subtitles.srt --max-chars 18
+
+Scan an input folder for missing subtitles::
+
+    python main.py --batch --input-dir input --output-dir output
+
+Use a custom local Whisper model cache::
+
+    python main.py input.mp4 --model-dir D:/models
 """
 
 from __future__ import annotations
@@ -37,23 +45,43 @@ def build_parser() -> argparse.ArgumentParser:
         prog="autostr",
         description=(
             "AutoStr – Dockerised Chinese video subtitle alignment and reflow.\n"
-            "Accepts a video file and produces an SRT subtitle file."
+            "Accepts either one video file or a batch input/output folder pair."
         ),
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=__doc__,
     )
 
     # ── I/O ──────────────────────────────────────────────────────────────────
-    p.add_argument("video", help="Input video (or audio) file path.")
+    p.add_argument("video", nargs="?", help="Input video (or audio) file path.")
     p.add_argument(
         "-o", "--output",
         default=None,
         help="Output SRT file path. Defaults to <video>.srt.",
     )
     p.add_argument(
+        "--batch",
+        action="store_true",
+        help="Scan an input folder and process files whose matching SRT is missing.",
+    )
+    p.add_argument(
+        "--input-dir",
+        default=None,
+        help="Batch mode input directory to scan recursively.",
+    )
+    p.add_argument(
+        "--output-dir",
+        default=None,
+        help="Batch mode output directory for generated SRT files.",
+    )
+    p.add_argument(
         "--keep-audio",
         action="store_true",
         help="Keep the intermediate WAV audio file.",
+    )
+    p.add_argument(
+        "--model-dir",
+        default=None,
+        help="Whisper model cache directory inside the container or on the host-mounted path.",
     )
 
     # ── ASR ──────────────────────────────────────────────────────────────────
@@ -153,19 +181,60 @@ def main(argv: list[str] | None = None) -> int:
         datefmt="%H:%M:%S",
     )
 
-    video_path = Path(args.video)
-    if not video_path.exists():
-        print(f"ERROR: Video file not found: {video_path}", file=sys.stderr)
-        return 1
-
-    from autostr.pipeline import run
+    from autostr.pipeline import run, run_missing_subtitles
 
     try:
+        if args.batch:
+            if args.video is not None or args.output is not None:
+                print("ERROR: --batch cannot be combined with a single video input or --output.", file=sys.stderr)
+                return 1
+
+            if args.input_dir is None or args.output_dir is None:
+                print("ERROR: --batch requires both --input-dir and --output-dir.", file=sys.stderr)
+                return 1
+
+            input_dir = Path(args.input_dir)
+            output_dir = Path(args.output_dir)
+            if not input_dir.exists() or not input_dir.is_dir():
+                print(f"ERROR: Input directory not found: {input_dir}", file=sys.stderr)
+                return 1
+
+            print("Starting AutoStr batch scan...", flush=True)
+            pending_jobs = run_missing_subtitles(
+                input_dir=input_dir,
+                output_dir=output_dir,
+                model_size=args.model_size,
+                model_dir=args.model_dir,
+                language=args.language,
+                device=args.device,
+                compute_type=args.compute_type,
+                use_whisperx=args.use_whisperx,
+                max_chars_per_line=args.max_chars_per_line,
+                start_delay_ms=args.start_delay_ms,
+                global_shift_ms=args.global_shift_ms,
+                min_duration=args.min_duration,
+                max_duration=args.max_duration,
+                keep_audio=args.keep_audio,
+            )
+
+            print(f"✔ Batch processing complete. Generated {len(pending_jobs)} subtitle file(s).")
+            return 0
+
+        if args.video is None:
+            print("ERROR: a video file path is required unless --batch is used.", file=sys.stderr)
+            return 1
+
+        video_path = Path(args.video)
+        if not video_path.exists():
+            print(f"ERROR: Video file not found: {video_path}", file=sys.stderr)
+            return 1
+
         print("Starting AutoStr pipeline...", flush=True)
         output_srt = run(
             video_path=video_path,
             output_srt=args.output,
             model_size=args.model_size,
+            model_dir=args.model_dir,
             language=args.language,
             device=args.device,
             compute_type=args.compute_type,
