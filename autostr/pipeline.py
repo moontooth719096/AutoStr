@@ -8,6 +8,12 @@ from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
+
+def _default_output_srt(video_path: Path, export_highlights: bool = False) -> Path:
+    if export_highlights:
+        return Path("/output") / f"{video_path.stem}_highlights" / f"{video_path.stem}.srt"
+    return Path("/output") / f"{video_path.stem}.srt"
+
 MEDIA_SUFFIXES = {
     ".mp4",
     ".mkv",
@@ -42,8 +48,15 @@ def run(
     min_duration: float = 0.8,
     max_duration: float = 7.0,
     keep_audio: bool = False,
+    export_highlights: bool = False,
+    highlight_output_dir: str | Path | None = None,
+    highlight_count: int = 3,
+    highlight_min_duration: float = 15.0,
+    highlight_max_duration: float = 60.0,
+    highlight_padding_seconds: float = 1.5,
 ) -> Path:
     from autostr.audio import extract_audio
+    from autostr.highlight import detect_highlights, export_highlight_clips
     from autostr.transcribe import transcribe
     from autostr.align import align
     from autostr.reflow import reflow
@@ -52,7 +65,7 @@ def run(
     video_path = Path(video_path)
 
     if output_srt is None:
-        output_srt = video_path.with_suffix(".srt")
+        output_srt = _default_output_srt(video_path, export_highlights=export_highlights)
     else:
         output_srt = Path(output_srt)
 
@@ -98,11 +111,43 @@ def run(
         )
         write_srt(entries, output_srt)
 
+        if export_highlights:
+            logger.info("Step 5/5 – Detecting and exporting highlight clips …")
+            highlights = detect_highlights(
+                segments,
+                target_count=highlight_count,
+                min_clip_duration=highlight_min_duration,
+                max_clip_duration=highlight_max_duration,
+            )
+
+            if highlights:
+                if highlight_output_dir is None:
+                    highlight_output_dir = output_srt.parent
+
+                highlight_clips = export_highlight_clips(
+                    source_video=video_path,
+                    candidates=highlights,
+                    output_dir=highlight_output_dir,
+                    padding_seconds=highlight_padding_seconds,
+                )
+                logger.info("Exported %d highlight clip(s).", len(highlight_clips))
+            else:
+                logger.info("No highlight clips met the selection criteria.")
+
     logger.info("Pipeline complete. Output: %s", output_srt)
     return output_srt
 
 
 def find_missing_subtitle_jobs(input_dir: str | Path, output_dir: str | Path) -> list[tuple[Path, Path]]:
+    """Return media files whose matching SRT file is missing from *output_dir*."""
+    return find_missing_subtitle_jobs_with_mode(input_dir, output_dir, export_highlights=False)
+
+
+def find_missing_subtitle_jobs_with_mode(
+    input_dir: str | Path,
+    output_dir: str | Path,
+    export_highlights: bool = False,
+) -> list[tuple[Path, Path]]:
     """Return media files whose matching SRT file is missing from *output_dir*."""
     input_dir = Path(input_dir)
     output_dir = Path(output_dir)
@@ -122,7 +167,10 @@ def find_missing_subtitle_jobs(input_dir: str | Path, output_dir: str | Path) ->
             continue
 
         relative_path = resolved_media_path.relative_to(resolved_input_dir)
-        target_srt = output_dir / relative_path.with_suffix(".srt")
+        if export_highlights:
+            target_srt = output_dir / relative_path.parent / f"{relative_path.stem}_highlights" / f"{relative_path.stem}.srt"
+        else:
+            target_srt = output_dir / relative_path.with_suffix(".srt")
         if not target_srt.exists():
             jobs.append((media_path, target_srt))
 
@@ -130,8 +178,8 @@ def find_missing_subtitle_jobs(input_dir: str | Path, output_dir: str | Path) ->
 
 
 def run_missing_subtitles(
-    input_dir: str | Path,
-    output_dir: str | Path,
+    input_dir: str | Path = "/input",
+    output_dir: str | Path = "/output",
     model_size: str = "medium",
     model_dir: str | Path | None = None,
     language: str = "zh",
@@ -144,9 +192,15 @@ def run_missing_subtitles(
     min_duration: float = 0.8,
     max_duration: float = 7.0,
     keep_audio: bool = False,
+    export_highlights: bool = False,
+    highlight_output_dir: str | Path | None = None,
+    highlight_count: int = 3,
+    highlight_min_duration: float = 15.0,
+    highlight_max_duration: float = 60.0,
+    highlight_padding_seconds: float = 1.5,
 ) -> list[Path]:
     """Process every media file under *input_dir* that is missing a sibling SRT in *output_dir*."""
-    jobs = find_missing_subtitle_jobs(input_dir, output_dir)
+    jobs = find_missing_subtitle_jobs_with_mode(input_dir, output_dir, export_highlights=export_highlights)
 
     if not jobs:
         logger.info("Batch scan complete. No missing subtitles found.")
@@ -173,6 +227,12 @@ def run_missing_subtitles(
                 min_duration=min_duration,
                 max_duration=max_duration,
                 keep_audio=keep_audio,
+                export_highlights=export_highlights,
+                highlight_output_dir=highlight_output_dir,
+                highlight_count=highlight_count,
+                highlight_min_duration=highlight_min_duration,
+                highlight_max_duration=highlight_max_duration,
+                highlight_padding_seconds=highlight_padding_seconds,
             )
         )
 

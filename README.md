@@ -92,7 +92,14 @@ docker run --rm \
   -v /path/to/your/models:/models \
   -v /path/to/your/input:/input \
   -v /path/to/your/output:/output \
-  autostr --batch --input-dir /input --output-dir /output
+  autostr --batch
+
+# Batch scan and export highlight clips alongside subtitles
+docker run --rm \
+  -v /path/to/your/models:/models \
+  -v /path/to/your/input:/input \
+  -v /path/to/your/output:/output \
+  autostr --batch --highlights
 ```
 
 ### 3 – Using docker compose
@@ -111,7 +118,7 @@ docker compose run --rm autostr \
 
 # Batch scan the mounted input folder and fill in missing subtitles only
 docker compose run --rm autostr \
-  --batch --input-dir /input --output-dir /output
+  --batch
 ```
 
 The compose service mounts `./input` to `/input`, `./output` to `/output`, and
@@ -146,12 +153,16 @@ docker run --rm --gpus all \
 ## All CLI options
 
 ```
-usage: autostr [-h] [-o OUTPUT] [--batch] [--input-dir INPUT_DIR]
-               [--output-dir OUTPUT_DIR] [--keep-audio]
+usage: autostr [-h] [-o OUTPUT] [--batch] [--keep-audio]
                [--model {tiny,base,small,medium,large-v2,large-v3}]
                [--language LANGUAGE] [--device {cpu,cuda}]
                [--compute-type {int8,float16,float32}]
                [--no-whisperx]
+               [--highlights] [--highlight-output-dir HIGHLIGHT_OUTPUT_DIR]
+               [--highlight-count HIGHLIGHT_COUNT]
+               [--highlight-min-duration HIGHLIGHT_MIN_DURATION]
+               [--highlight-max-duration HIGHLIGHT_MAX_DURATION]
+               [--highlight-padding HIGHLIGHT_PADDING_SECONDS]
                [--max-chars MAX_CHARS_PER_LINE]
                [--start-delay MS] [--global-shift MS]
                [--min-duration SEC] [--max-duration SEC]
@@ -162,11 +173,9 @@ positional arguments:
   video                Input video (or audio) file path.
 
 I/O:
-  -o, --output         Output SRT file path.  Defaults to <video>.srt.
+  -o, --output         Output SRT file path.  Defaults to /output/<video>.srt.
   --batch              Scan an input folder and process files whose matching
                        SRT is missing.
-  --input-dir          Batch mode input directory to scan recursively.
-  --output-dir         Batch mode output directory for generated SRT files.
   --keep-audio         Keep the intermediate WAV audio file.
   --model-dir          Whisper model cache directory.
 
@@ -178,6 +187,16 @@ ASR / transcription:
 
 alignment:
   --no-whisperx        Disable WhisperX and use faster-whisper timestamps only.
+
+highlights / clipping:
+  --highlights              Detect and export automatic highlight clips.
+  --highlight-output-dir     Directory for clip output. Defaults to the same
+                            folder as the SRT output; in highlight mode that
+                            becomes /output/<video>_highlights.
+  --highlight-count         Maximum number of clips to export.
+  --highlight-min-duration  Minimum length of a clip in seconds.
+  --highlight-max-duration  Maximum length of a clip in seconds.
+  --highlight-padding       Seconds to add before and after each clip.
 
 reflow / formatting:
   --max-chars          Max Chinese characters per subtitle line (default: 16).
@@ -304,6 +323,7 @@ AutoStr/
 ├── autostr/                  # Python package
 │   ├── __init__.py
 │   ├── audio.py              # ffmpeg audio extraction
+│   ├── highlight.py          # highlight scoring and clip export
 │   ├── transcribe.py         # faster-whisper ASR
 │   ├── align.py              # WhisperX fine-grained alignment
 │   ├── reflow.py             # Chinese segmentation & reflow

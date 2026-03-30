@@ -25,7 +25,7 @@ Specify output path and control line length::
 
 Scan an input folder for missing subtitles::
 
-    python main.py --batch --input-dir input --output-dir output
+    python main.py --batch
 
 Use a custom local Whisper model cache::
 
@@ -56,22 +56,12 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument(
         "-o", "--output",
         default=None,
-        help="Output SRT file path. Defaults to <video>.srt.",
+        help="Output SRT file path. Defaults to /output/<video>.srt inside the container.",
     )
     p.add_argument(
         "--batch",
         action="store_true",
         help="Scan an input folder and process files whose matching SRT is missing.",
-    )
-    p.add_argument(
-        "--input-dir",
-        default=None,
-        help="Batch mode input directory to scan recursively.",
-    )
-    p.add_argument(
-        "--output-dir",
-        default=None,
-        help="Batch mode output directory for generated SRT files.",
     )
     p.add_argument(
         "--keep-audio",
@@ -82,6 +72,44 @@ def build_parser() -> argparse.ArgumentParser:
         "--model-dir",
         default=None,
         help="Whisper model cache directory inside the container or on the host-mounted path.",
+    )
+
+    # ── Highlights ──────────────────────────────────────────────────────────
+    hl = p.add_argument_group("highlights / clipping")
+    hl.add_argument(
+        "--highlights",
+        action="store_true",
+        help="Detect and export automatic highlight clips.",
+    )
+    hl.add_argument(
+        "--highlight-output-dir",
+        default=None,
+        help="Directory for highlight clips. Defaults to the same folder as the SRT output; in highlight mode that is /output/<video>_highlights.",
+    )
+    hl.add_argument(
+        "--highlight-count",
+        type=int,
+        default=3,
+        help="Maximum number of highlight clips to export.",
+    )
+    hl.add_argument(
+        "--highlight-min-duration",
+        type=float,
+        default=15.0,
+        help="Minimum length of a highlight clip in seconds.",
+    )
+    hl.add_argument(
+        "--highlight-max-duration",
+        type=float,
+        default=60.0,
+        help="Maximum length of a highlight clip in seconds.",
+    )
+    hl.add_argument(
+        "--highlight-padding",
+        type=float,
+        default=1.5,
+        dest="highlight_padding_seconds",
+        help="Seconds to add before and after each highlight clip.",
     )
 
     # ── ASR ──────────────────────────────────────────────────────────────────
@@ -189,17 +217,16 @@ def main(argv: list[str] | None = None) -> int:
                 print("ERROR: --batch cannot be combined with a single video input or --output.", file=sys.stderr)
                 return 1
 
-            if args.input_dir is None or args.output_dir is None:
-                print("ERROR: --batch requires both --input-dir and --output-dir.", file=sys.stderr)
-                return 1
-
-            input_dir = Path(args.input_dir)
-            output_dir = Path(args.output_dir)
+            input_dir = Path("/input")
+            output_dir = Path("/output")
             if not input_dir.exists() or not input_dir.is_dir():
                 print(f"ERROR: Input directory not found: {input_dir}", file=sys.stderr)
                 return 1
+            if not output_dir.exists() or not output_dir.is_dir():
+                print(f"ERROR: Output directory not found: {output_dir}", file=sys.stderr)
+                return 1
 
-            print("Starting AutoStr batch scan...", flush=True)
+            print(f"Starting AutoStr batch scan... input={input_dir} output={output_dir}", flush=True)
             pending_jobs = run_missing_subtitles(
                 input_dir=input_dir,
                 output_dir=output_dir,
@@ -215,6 +242,12 @@ def main(argv: list[str] | None = None) -> int:
                 min_duration=args.min_duration,
                 max_duration=args.max_duration,
                 keep_audio=args.keep_audio,
+                export_highlights=args.highlights,
+                highlight_output_dir=args.highlight_output_dir,
+                highlight_count=args.highlight_count,
+                highlight_min_duration=args.highlight_min_duration,
+                highlight_max_duration=args.highlight_max_duration,
+                highlight_padding_seconds=args.highlight_padding_seconds,
             )
 
             print(f"✔ Batch processing complete. Generated {len(pending_jobs)} subtitle file(s).")
@@ -245,6 +278,12 @@ def main(argv: list[str] | None = None) -> int:
             min_duration=args.min_duration,
             max_duration=args.max_duration,
             keep_audio=args.keep_audio,
+            export_highlights=args.highlights,
+            highlight_output_dir=args.highlight_output_dir,
+            highlight_count=args.highlight_count,
+            highlight_min_duration=args.highlight_min_duration,
+            highlight_max_duration=args.highlight_max_duration,
+            highlight_padding_seconds=args.highlight_padding_seconds,
         )
     except Exception as exc:
         logging.getLogger(__name__).exception("Pipeline failed: %s", exc)
