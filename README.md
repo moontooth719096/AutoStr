@@ -34,6 +34,23 @@ container path fixed as `/models`; only the host-side folder changes.
 If you already have a local model cache, mount it to `/models` and you do not
 need to pass `--model-dir`.
 
+### CPU / GPU layouts
+
+Use the default compose file for CPU runs:
+
+```bash
+docker compose up --build
+```
+
+Use the GPU override compose file when you want CUDA:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.gpu.yml up --build
+```
+
+The same Python codebase is reused in both cases. Only the container base image,
+device, and compute type change.
+
 ### 2 – Run the pipeline
 
 ```bash
@@ -146,6 +163,16 @@ docker run --rm --gpus all \
   -v /path/to/videos:/input \
   -v /path/to/output:/output \
   autostr:cuda /input/input.mp4 --device cuda --compute-type float16
+```
+
+### Compose files
+
+```bash
+# CPU default
+docker compose up --build
+
+# GPU override
+docker compose -f docker-compose.yml -f docker-compose.gpu.yml up --build
 ```
 
 ---
@@ -336,6 +363,7 @@ AutoStr/
 ├── requirements.txt
 ├── Dockerfile
 ├── docker-compose.yml
+├── docker-compose.gpu.yml
 └── .dockerignore
 ```
 

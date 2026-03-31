@@ -12,6 +12,3 @@ services:
       - XDG_CACHE_HOME=/models/cache
       - WHISPER_DEVICE=cpu
       - WHISPER_COMPUTE_TYPE=int8
-      - WHISPER_MODEL=small
-      - START_DELAY_MS=150
-    command: ["/input/test.mp4", "-o", "/output/test.srt"]
