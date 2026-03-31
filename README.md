@@ -21,6 +21,15 @@ file in Chinese.  The pipeline:
 docker build -t autostr .
 ```
 
+This builds the default CPU image. If you want GPU acceleration for Whisper
+and highlight export, build from a CUDA base image instead:
+
+```bash
+docker build \
+  --build-arg BASE_IMAGE=pytorch/pytorch:2.2.0-cuda11.8-cudnn8-runtime \
+  -t autostr:cuda .
+```
+
 The `medium` faster-whisper model is pre-downloaded during the build so the
 first run is faster.  To pre-download a different model:
 
@@ -50,6 +59,8 @@ docker compose -f docker-compose.yml -f docker-compose.gpu.yml up --build
 
 The same Python codebase is reused in both cases. Only the container base image,
 device, and compute type change.
+The GPU compose file also enables NVIDIA `video` driver capabilities so ffmpeg
+can expose NVENC if the host driver supports it.
 
 ### 2 – Run the pipeline
 
@@ -60,6 +71,14 @@ docker run --rm \
   -v /path/to/your/videos:/input \
   -v /path/to/your/output:/output \
   autostr /input/input.mp4
+
+# GPU run: enable CUDA and NVENC so ffmpeg can use GPU video encoding
+docker run --rm --gpus all \
+  -e NVIDIA_DRIVER_CAPABILITIES=compute,utility,video \
+  -v /path/to/your/models:/models \
+  -v /path/to/your/videos:/input \
+  -v /path/to/your/output:/output \
+  autostr:cuda /input/input.mp4 --device cuda --compute-type float16
 
 # Custom output path
 docker run --rm \
@@ -159,6 +178,7 @@ docker build \
 
 ```bash
 docker run --rm --gpus all \
+  -e NVIDIA_DRIVER_CAPABILITIES=compute,utility,video \
   -v /path/to/models:/models \
   -v /path/to/videos:/input \
   -v /path/to/output:/output \

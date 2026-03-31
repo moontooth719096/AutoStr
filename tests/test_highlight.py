@@ -1,8 +1,10 @@
 """Tests for automatic highlight detection and clip export."""
 from __future__ import annotations
 
+from subprocess import CompletedProcess
 from unittest.mock import patch
 
+import autostr.highlight as highlight_module
 from autostr.highlight import detect_highlights, export_highlight_clips
 from autostr.transcribe import TranscriptSegment
 
@@ -61,12 +63,91 @@ def test_export_highlight_clips_writes_manifest(tmp_path):
         )(),
     ]
 
+    def fake_run(cmd, check=True, capture_output=True, text=True):
+        if cmd[:3] == ["ffmpeg", "-hide_banner", "-encoders"]:
+            return CompletedProcess(cmd, 0, stdout=" V....D libx264\n", stderr="")
+        return CompletedProcess(cmd, 0, stdout="", stderr="")
+
+    highlight_module._ffmpeg_supports_encoder.cache_clear()
     with patch("autostr.highlight.shutil.which", return_value="ffmpeg"), patch(
-        "autostr.highlight.subprocess.run"
+        "autostr.highlight.subprocess.run",
+        side_effect=fake_run,
     ) as mock_run:
         exports = export_highlight_clips(source, candidates, output_dir, padding_seconds=1.0)
 
     assert len(exports) == 1
     assert exports[0].output_path.endswith("input_highlight_01.mp4")
     assert (output_dir / "input_highlights.json").exists()
-    mock_run.assert_called_once()
+    assert mock_run.call_count == 2
+
+
+def test_export_highlight_clips_falls_back_when_libx264_is_missing(tmp_path):
+    source = tmp_path / "input.mp4"
+    source.write_bytes(b"fake")
+    output_dir = tmp_path / "clips"
+
+    candidates = [
+        type(
+            "Candidate",
+            (),
+            {
+                "start": 1.0,
+                "end": 6.0,
+                "score": 1.5,
+                "reason": "句尾完整",
+                "text": "測試高光",
+            },
+        )(),
+    ]
+
+    def fake_run(cmd, check=True, capture_output=True, text=True):
+        if cmd[:3] == ["ffmpeg", "-hide_banner", "-encoders"]:
+            return CompletedProcess(cmd, 0, stdout=" V....D mpeg4\n", stderr="")
+        return CompletedProcess(cmd, 0, stdout="", stderr="")
+
+    highlight_module._ffmpeg_supports_encoder.cache_clear()
+    with patch("autostr.highlight.shutil.which", return_value="ffmpeg"), patch(
+        "autostr.highlight.subprocess.run",
+        side_effect=fake_run,
+    ) as mock_run:
+        export_highlight_clips(source, candidates, output_dir, padding_seconds=1.0)
+
+    export_cmd = mock_run.call_args_list[1].args[0]
+    assert "mpeg4" in export_cmd
+    assert "-q:v" in export_cmd
+
+
+def test_export_highlight_clips_prefers_gpu_encoder_when_available(tmp_path):
+    source = tmp_path / "input.mp4"
+    source.write_bytes(b"fake")
+    output_dir = tmp_path / "clips"
+
+    candidates = [
+        type(
+            "Candidate",
+            (),
+            {
+                "start": 1.0,
+                "end": 6.0,
+                "score": 1.5,
+                "reason": "句尾完整",
+                "text": "測試高光",
+            },
+        )(),
+    ]
+
+    def fake_run(cmd, check=True, capture_output=True, text=True):
+        if cmd[:3] == ["ffmpeg", "-hide_banner", "-encoders"]:
+            return CompletedProcess(cmd, 0, stdout=" V....D h264_nvenc\n", stderr="")
+        return CompletedProcess(cmd, 0, stdout="", stderr="")
+
+    highlight_module._ffmpeg_supports_encoder.cache_clear()
+    with patch("autostr.highlight.shutil.which", return_value="ffmpeg"), patch(
+        "autostr.highlight.subprocess.run",
+        side_effect=fake_run,
+    ) as mock_run:
+        export_highlight_clips(source, candidates, output_dir, padding_seconds=1.0, prefer_gpu=True)
+
+    export_cmd = mock_run.call_args_list[1].args[0]
+    assert "h264_nvenc" in export_cmd
+    assert "-cq:v" in export_cmd

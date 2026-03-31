@@ -6,5 +6,6 @@ services:
     image: autostr:cuda
     gpus: all
     environment:
+      - NVIDIA_DRIVER_CAPABILITIES=compute,utility,video
       - WHISPER_DEVICE=cuda
       - WHISPER_COMPUTE_TYPE=float16

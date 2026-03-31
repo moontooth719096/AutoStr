@@ -111,6 +111,12 @@ def build_parser() -> argparse.ArgumentParser:
         dest="highlight_padding_seconds",
         help="Seconds to add before and after each highlight clip.",
     )
+    hl.add_argument(
+        "--highlight-encoder",
+        default="auto",
+        choices=["auto", "cpu", "gpu"],
+        help="Highlight export encoder preference. Use auto to follow --device.",
+    )
 
     # ── ASR ──────────────────────────────────────────────────────────────────
     asr = p.add_argument_group("ASR / transcription")
@@ -248,6 +254,7 @@ def main(argv: list[str] | None = None) -> int:
                 highlight_min_duration=args.highlight_min_duration,
                 highlight_max_duration=args.highlight_max_duration,
                 highlight_padding_seconds=args.highlight_padding_seconds,
+                highlight_encoder=args.highlight_encoder,
             )
 
             print(f"✔ Batch processing complete. Generated {len(pending_jobs)} subtitle file(s).")
@@ -284,6 +291,7 @@ def main(argv: list[str] | None = None) -> int:
             highlight_min_duration=args.highlight_min_duration,
             highlight_max_duration=args.highlight_max_duration,
             highlight_padding_seconds=args.highlight_padding_seconds,
+            highlight_encoder=args.highlight_encoder,
         )
     except Exception as exc:
         logging.getLogger(__name__).exception("Pipeline failed: %s", exc)

@@ -14,6 +14,14 @@ def _default_output_srt(video_path: Path, export_highlights: bool = False) -> Pa
         return Path("/output") / f"{video_path.stem}_highlights" / f"{video_path.stem}.srt"
     return Path("/output") / f"{video_path.stem}.srt"
 
+
+def _prefer_gpu_for_highlights(device: str, highlight_encoder: str) -> bool:
+    if highlight_encoder == "gpu":
+        return True
+    if highlight_encoder == "cpu":
+        return False
+    return device == "cuda"
+
 MEDIA_SUFFIXES = {
     ".mp4",
     ".mkv",
@@ -54,6 +62,7 @@ def run(
     highlight_min_duration: float = 15.0,
     highlight_max_duration: float = 60.0,
     highlight_padding_seconds: float = 1.5,
+    highlight_encoder: str = "auto",
 ) -> Path:
     from autostr.audio import extract_audio
     from autostr.highlight import detect_highlights, export_highlight_clips
@@ -129,6 +138,7 @@ def run(
                     candidates=highlights,
                     output_dir=highlight_output_dir,
                     padding_seconds=highlight_padding_seconds,
+                    prefer_gpu=_prefer_gpu_for_highlights(device, highlight_encoder),
                 )
                 logger.info("Exported %d highlight clip(s).", len(highlight_clips))
             else:
@@ -198,6 +208,7 @@ def run_missing_subtitles(
     highlight_min_duration: float = 15.0,
     highlight_max_duration: float = 60.0,
     highlight_padding_seconds: float = 1.5,
+    highlight_encoder: str = "auto",
 ) -> list[Path]:
     """Process every media file under *input_dir* that is missing a sibling SRT in *output_dir*."""
     jobs = find_missing_subtitle_jobs_with_mode(input_dir, output_dir, export_highlights=export_highlights)
@@ -233,6 +244,7 @@ def run_missing_subtitles(
                 highlight_min_duration=highlight_min_duration,
                 highlight_max_duration=highlight_max_duration,
                 highlight_padding_seconds=highlight_padding_seconds,
+                highlight_encoder=highlight_encoder,
             )
         )
 

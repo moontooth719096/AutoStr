@@ -37,6 +37,7 @@ def test_parser_defaults():
     assert args.highlight_min_duration == 15.0
     assert args.highlight_max_duration == 60.0
     assert args.highlight_padding_seconds == 1.5
+    assert args.highlight_encoder == "auto"
     assert args.verbose is False
 
 
@@ -93,6 +94,12 @@ def test_parser_highlights():
     assert args.highlight_min_duration == 12.0
     assert args.highlight_max_duration == 45.0
     assert args.highlight_padding_seconds == 2.0
+
+
+def test_parser_highlight_encoder_override():
+    parser = build_parser()
+    args = parser.parse_args(["video.mp4", "--highlight-encoder", "gpu"])
+    assert args.highlight_encoder == "gpu"
 
 
 def test_main_missing_file(capsys):
@@ -161,6 +168,26 @@ def test_main_calls_pipeline_with_highlights(tmp_path):
     call_kwargs = mock_run.call_args[1]
     assert call_kwargs["export_highlights"] is True
     assert call_kwargs["highlight_count"] == 2
+    assert call_kwargs["highlight_encoder"] == "auto"
+
+
+def test_main_passes_highlight_encoder_override(tmp_path):
+    fake_video = tmp_path / "video.mp4"
+    fake_video.write_bytes(b"fake")
+    fake_srt = tmp_path / "video.srt"
+
+    with patch("autostr.pipeline.run", return_value=fake_srt) as mock_run:
+        ret = main([
+            str(fake_video),
+            "--highlights",
+            "--highlight-encoder",
+            "cpu",
+        ])
+
+    assert ret == 0
+    mock_run.assert_called_once()
+    call_kwargs = mock_run.call_args[1]
+    assert call_kwargs["highlight_encoder"] == "cpu"
 
 
 def test_default_output_routes_input_mount_to_output():

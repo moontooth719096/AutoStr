@@ -6,6 +6,7 @@ import json
 import logging
 import shutil
 import subprocess
+from functools import lru_cache
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Iterable
@@ -69,6 +70,31 @@ def _extract_words(segment) -> list | None:
     if isinstance(segment, dict):
         return segment.get("words")
     return getattr(segment, "words", None)
+
+
+@lru_cache(maxsize=1)
+def _ffmpeg_supports_encoder(encoder_name: str) -> bool:
+    result = subprocess.run(
+        ["ffmpeg", "-hide_banner", "-encoders"],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    for line in result.stdout.splitlines():
+        parts = line.split()
+        if len(parts) >= 2 and parts[1] == encoder_name:
+            return True
+    return False
+
+
+def _select_video_encoder(prefer_gpu: bool) -> tuple[str, list[str]]:
+    if prefer_gpu and _ffmpeg_supports_encoder("h264_nvenc"):
+        return "h264_nvenc", ["-preset", "p4", "-cq:v", "23", "-b:v", "0"]
+
+    if _ffmpeg_supports_encoder("libx264"):
+        return "libx264", ["-preset", "veryfast", "-crf", "23"]
+
+    return "mpeg4", ["-q:v", "5"]
 
 
 def _segment_score(segment) -> float:
@@ -213,26 +239,29 @@ def _trim_clip(
     output_path: Path,
     start_seconds: float,
     end_seconds: float,
+    prefer_gpu: bool = False,
 ) -> None:
     if shutil.which("ffmpeg") is None:
         raise FileNotFoundError("ffmpeg not found. Install it with: apt-get install ffmpeg")
 
     duration = max(end_seconds - start_seconds, 0.1)
+    video_encoder, video_options = _select_video_encoder(prefer_gpu=prefer_gpu)
     cmd = [
         "ffmpeg",
         "-y",
         "-i",
         str(source_video),
+        "-map",
+        "0:v:0",
+        "-map",
+        "0:a?",
         "-ss",
         _format_seconds(start_seconds),
         "-t",
         _format_seconds(duration),
         "-c:v",
-        "libx264",
-        "-preset",
-        "veryfast",
-        "-crf",
-        "23",
+        video_encoder,
+        *video_options,
         "-c:a",
         "aac",
         "-b:a",
@@ -242,7 +271,14 @@ def _trim_clip(
         str(output_path),
     ]
     logger.info("Exporting highlight clip: %s", " ".join(cmd))
-    subprocess.run(cmd, check=True, capture_output=True)
+    try:
+        subprocess.run(cmd, check=True, capture_output=True, text=True)
+    except subprocess.CalledProcessError as exc:
+        stderr = (exc.stderr or "").strip()
+        if stderr:
+            logger.error("ffmpeg failed while exporting %s: %s", output_path, stderr)
+            raise RuntimeError(f"ffmpeg failed while exporting {output_path}: {stderr}") from exc
+        raise RuntimeError(f"ffmpeg failed while exporting {output_path}") from exc
 
 
 def export_highlight_clips(
@@ -250,6 +286,7 @@ def export_highlight_clips(
     candidates: Iterable[HighlightCandidate],
     output_dir: str | Path,
     padding_seconds: float = 1.5,
+    prefer_gpu: bool = False,
 ) -> list[HighlightClip]:
     source_video = Path(source_video)
     output_dir = Path(output_dir)
@@ -265,7 +302,7 @@ def export_highlight_clips(
         export_end = max(export_start + 0.1, candidate.end + padding_seconds)
         output_path = output_dir / f"{source_video.stem}_highlight_{index:02d}.mp4"
 
-        _trim_clip(source_video, output_path, export_start, export_end)
+        _trim_clip(source_video, output_path, export_start, export_end, prefer_gpu=prefer_gpu)
 
         exports.append(
             HighlightClip(
