@@ -154,23 +154,43 @@ Compose 會把主機上的資料夾掛到容器內固定位置：
 
 這些是最常用、也最值得先知道的參數：
 
-| 參數 | 用途 | 預設 |
+| 參數 | 用途 | 預設值 |
 |---|---|---|
-| `--model` | Whisper 模型大小 | `tiny` / `base` / `small` / `medium` / `large-v2` / `large-v3` |
-| `--language` | 語言代碼 | 任何 BCP-47 語言代碼，常用 `zh` |
-| `--device` | `cpu` 或 `cuda` | `cpu` / `cuda` |
-| `--compute-type` | 推論精度 | `int8` / `float16` / `float32` |
-| `--no-whisperx` | 停用 WhisperX 對齊 | 無參數，加入後就會停用 |
-| `--max-chars` | 每行最大字數 | 任意正整數 |
-| `--start-delay` | 字幕起始延後毫秒數 | 任意整數 |
-| `--global-shift` | 全部字幕整體平移毫秒數 | 任意整數 |
-| `--min-duration` | 最短顯示時間 | 任意正數（秒） |
-| `--max-duration` | 最長顯示時間 | 任意正數（秒） |
-| `--highlights` | 輸出高光片段 | 無參數，加入後就會啟用 |
+| `--model` | Whisper 模型大小 | `medium` |
+| `--language` | 語言代碼 | `zh` |
+| `--device` | 推論裝置 | `cpu` |
+| `--compute-type` | 推論精度 | `int8` |
+| `--no-whisperx` | 停用 WhisperX 對齊 | 開啟 WhisperX，加入參數後才停用 |
+| `--max-chars` | 每行最大字數 | `16` |
+| `--start-delay` | 字幕起始延後毫秒數 | `0` |
+| `--global-shift` | 全部字幕整體平移毫秒數 | `0` |
+| `--min-duration` | 最短顯示時間 | `0.8` 秒 |
+| `--max-duration` | 最長顯示時間 | `7.0` 秒 |
+| `--highlights` | 輸出高光片段 | 關閉 |
 
 如果你只想先做出可用字幕，通常先調 `--start-delay`、`--global-shift`、`--max-chars` 就夠了。
 
 `--batch` 不放在這張表裡，因為它是模式切換，不是一般輸出行為的微調參數。
+
+### 可用選項一覽
+
+下表只列出「不是自由輸入」或「特別容易混淆」的參數選項：
+
+| 參數 | 可用選項 |
+|---|---|
+| `--model` | `tiny`、`base`、`small`、`medium`、`large-v2`、`large-v3` |
+| `--device` | `cpu`、`cuda` |
+| `--compute-type` | `int8`、`float16`、`float32` |
+| `--highlight-encoder` | `auto`、`cpu`、`gpu` |
+| `--no-whisperx` | 無參數，加入後就會停用 |
+| `--highlights` | 無參數，加入後就會啟用 |
+| `--batch` | 無參數，加入後就會進入批次模式 |
+| `--language` | 任何 BCP-47 語言代碼，常用 `zh` |
+| `--max-chars` | 任意正整數 |
+| `--start-delay` | 任意整數（毫秒） |
+| `--global-shift` | 任意整數（毫秒） |
+| `--min-duration` | 任意正數（秒） |
+| `--max-duration` | 任意正數（秒） |
 
 ### 完整可用參數
 
