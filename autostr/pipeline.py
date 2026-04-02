@@ -22,6 +22,20 @@ def _prefer_gpu_for_highlights(device: str, highlight_encoder: str) -> bool:
         return False
     return device == "cuda"
 
+
+def _find_existing_subtitle_source(video_path: Path, output_srt: Path) -> Path | None:
+    candidates = [
+        output_srt,
+        video_path.with_suffix(".srt"),
+        _default_output_srt(video_path, export_highlights=False),
+    ]
+
+    for candidate in candidates:
+        if candidate.exists():
+            return candidate
+
+    return None
+
 MEDIA_SUFFIXES = {
     ".mp4",
     ".mkv",
@@ -69,7 +83,7 @@ def run(
     from autostr.transcribe import transcribe
     from autostr.align import align
     from autostr.reflow import reflow
-    from autostr.srt_writer import write_srt
+    from autostr.srt_writer import read_srt, write_srt
 
     video_path = Path(video_path)
 
@@ -80,6 +94,40 @@ def run(
 
     logger.info("Starting pipeline for: %s", video_path)
     logger.info("Output will be written to: %s", output_srt)
+
+    if export_highlights:
+        existing_subtitle_source = _find_existing_subtitle_source(video_path, output_srt)
+        if existing_subtitle_source is not None:
+            logger.info("Existing subtitles found at: %s", existing_subtitle_source)
+            entries = read_srt(existing_subtitle_source)
+            if existing_subtitle_source != output_srt:
+                write_srt(entries, output_srt)
+
+            logger.info("Step 1/1 – Detecting and exporting highlight clips …")
+            highlights = detect_highlights(
+                entries,
+                target_count=highlight_count,
+                min_clip_duration=highlight_min_duration,
+                max_clip_duration=highlight_max_duration,
+            )
+
+            if highlights:
+                if highlight_output_dir is None:
+                    highlight_output_dir = output_srt.parent
+
+                highlight_clips = export_highlight_clips(
+                    source_video=video_path,
+                    candidates=highlights,
+                    output_dir=highlight_output_dir,
+                    padding_seconds=highlight_padding_seconds,
+                    prefer_gpu=_prefer_gpu_for_highlights(device, highlight_encoder),
+                )
+                logger.info("Exported %d highlight clip(s).", len(highlight_clips))
+            else:
+                logger.info("No highlight clips met the selection criteria.")
+
+            logger.info("Pipeline complete. Output: %s", output_srt)
+            return output_srt
 
     with tempfile.TemporaryDirectory() as tmpdir:
         audio_path = Path(tmpdir) / "audio.wav"

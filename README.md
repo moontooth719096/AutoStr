@@ -107,6 +107,7 @@ docker run --rm \
   -v /path/to/output:/output \
   autostr /input/input.mp4 --highlights
 ```
+如果同一支影片的字幕已經存在，highlight 模式會直接重用既有字幕，不會再重新抽音訊與轉錄一次。
 
 ### 批次處理整個資料夾
 

@@ -13,7 +13,7 @@ from autostr.reflow import (
     _wrap_to_two_lines,
     reflow,
 )
-from autostr.srt_writer import _format_time, write_srt
+from autostr.srt_writer import _format_time, read_srt, write_srt
 from autostr.transcribe import TranscriptSegment
 
 
@@ -201,3 +201,19 @@ def test_write_srt_creates_parent_dirs(tmp_path):
     entries = [SubtitleEntry(index=1, start=0.0, end=1.0, lines=["測試"])]
     write_srt(entries, out)
     assert out.exists()
+
+
+def test_read_srt_round_trip(tmp_path):
+    out = tmp_path / "input.srt"
+    out.write_text(
+        "1\n00:00:01,000 --> 00:00:03,000\n你好世界\n\n2\n00:00:04,000 --> 00:00:06,000\n再見\n世界\n\n",
+        encoding="utf-8",
+    )
+
+    entries = read_srt(out)
+
+    assert len(entries) == 2
+    assert entries[0].start == 1.0
+    assert entries[0].end == 3.0
+    assert entries[0].text == "你好世界"
+    assert entries[1].text == "再見\n世界"
