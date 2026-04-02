@@ -156,17 +156,17 @@ Compose 會把主機上的資料夾掛到容器內固定位置：
 
 | 參數 | 用途 | 預設 |
 |---|---|---|
-| `--model` | Whisper 模型大小 | `medium` |
-| `--language` | 語言代碼 | `zh` |
-| `--device` | `cpu` 或 `cuda` | `cpu` |
-| `--compute-type` | 推論精度 | `int8` |
-| `--no-whisperx` | 停用 WhisperX 對齊 | 開啟 |
-| `--max-chars` | 每行最大字數 | `16` |
-| `--start-delay` | 字幕起始延後毫秒數 | `0` |
-| `--global-shift` | 全部字幕整體平移毫秒數 | `0` |
-| `--min-duration` | 最短顯示時間 | `0.8` 秒 |
-| `--max-duration` | 最長顯示時間 | `7.0` 秒 |
-| `--highlights` | 輸出高光片段 | 關閉 |
+| `--model` | Whisper 模型大小 | `tiny` / `base` / `small` / `medium` / `large-v2` / `large-v3` |
+| `--language` | 語言代碼 | 任何 BCP-47 語言代碼，常用 `zh` |
+| `--device` | `cpu` 或 `cuda` | `cpu` / `cuda` |
+| `--compute-type` | 推論精度 | `int8` / `float16` / `float32` |
+| `--no-whisperx` | 停用 WhisperX 對齊 | 無參數，加入後就會停用 |
+| `--max-chars` | 每行最大字數 | 任意正整數 |
+| `--start-delay` | 字幕起始延後毫秒數 | 任意整數 |
+| `--global-shift` | 全部字幕整體平移毫秒數 | 任意整數 |
+| `--min-duration` | 最短顯示時間 | 任意正數（秒） |
+| `--max-duration` | 最長顯示時間 | 任意正數（秒） |
+| `--highlights` | 輸出高光片段 | 無參數，加入後就會啟用 |
 
 如果你只想先做出可用字幕，通常先調 `--start-delay`、`--global-shift`、`--max-chars` 就夠了。
 
