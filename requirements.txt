@@ -3,4 +3,3 @@ whisperx
 torch
 numpy
 tqdm
-pytest

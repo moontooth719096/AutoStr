@@ -19,3 +19,10 @@ output/
 *.srt
 .git/
 .gitignore
+.github/
+.vscode/
+.pytest_cache/
+tests/
+README.md
+pytest.log
+requirements-dev.txt

@@ -119,6 +119,9 @@ docker run --rm \
   autostr --batch
 ```
 
+批次模式會掃描 `/input` 底下的影片或音訊檔，找出還沒有對應字幕的檔案再依序處理。
+如果你要使用 `--batch`，就不要再另外加單一檔案路徑，例如 `/input/input.mp4`。
+
 ---
 
 ## 使用 Docker Compose
@@ -166,6 +169,52 @@ Compose 會把主機上的資料夾掛到容器內固定位置：
 | `--highlights` | 輸出高光片段 | 關閉 |
 
 如果你只想先做出可用字幕，通常先調 `--start-delay`、`--global-shift`、`--max-chars` 就夠了。
+
+`--batch` 不放在這張表裡，因為它是模式切換，不是一般輸出行為的微調參數。
+
+### 完整可用參數
+
+如果你想知道目前可以傳哪些參數，可以直接看這份完整清單：
+
+#### I/O 與模式
+
+- `video`：輸入影片或音訊檔路徑
+- `-o, --output`：輸出 SRT 檔路徑
+- `--batch`：批次模式，掃描 `/input` 中缺少字幕的檔案並依序處理
+- `--keep-audio`：保留中間產生的 WAV 檔
+- `--model-dir`：Whisper 模型快取目錄
+
+#### 轉錄與模型
+
+- `--model`：`tiny`、`base`、`small`、`medium`、`large-v2`、`large-v3`
+- `--language`：語言代碼，預設 `zh`
+- `--device`：`cpu` 或 `cuda`
+- `--compute-type`：`int8`、`float16`、`float32`
+- `--no-whisperx`：停用 WhisperX 對齊
+
+#### 高光輸出
+
+- `--highlights`：輸出高光片段
+- `--highlight-output-dir`：高光輸出資料夾
+- `--highlight-count`：最多輸出幾個高光片段
+- `--highlight-min-duration`：高光最短長度（秒）
+- `--highlight-max-duration`：高光最長長度（秒）
+- `--highlight-padding`：高光前後補充秒數
+- `--highlight-encoder`：`auto`、`cpu`、`gpu`
+
+#### 字幕重排與時間調整
+
+- `--max-chars`：每行最大字數
+- `--start-delay`：字幕起始延後毫秒數
+- `--global-shift`：全部字幕整體平移毫秒數
+- `--min-duration`：字幕最短顯示時間（秒）
+- `--max-duration`：字幕最長顯示時間（秒）
+
+#### 其他
+
+- `-v, --verbose`：輸出 DEBUG 等級 log
+
+如果你平常只想做一般字幕輸出，最常會碰到的通常是 `--model`、`--device`、`--compute-type`、`--start-delay`、`--global-shift`、`--max-chars`、`--highlights`。
 
 ---
 
@@ -242,7 +291,7 @@ AutoStr 會輸出標準 SRT，格式是：
 
 ```bash
 pip install -r requirements.txt
-pip install pytest
+pip install -r requirements-dev.txt
 python main.py input.mp4
 ```
 
@@ -288,7 +337,8 @@ AutoStr/
 ├── Dockerfile
 ├── docker-compose.yml
 ├── docker-compose.gpu.yml
-└── requirements.txt
+├── requirements.txt
+└── requirements-dev.txt
 ```
 
 ---
