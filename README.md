@@ -227,7 +227,7 @@ Compose 會把主機上的資料夾掛到容器內固定位置：
 | `--highlight-max-duration` | 浮點數 | `60.0` | 任意正數（秒） | 高光最長長度。 |
 | `--highlight-min-gap` | 浮點數 | `4.0` | 任意正數（秒） | 兩個高光之間至少要隔開多久。 |
 | `--highlight-padding` | 浮點數 | `1.5` | 任意正數（秒） | 匯出片段時，前後各額外保留多少秒。 |
-| `--highlight-strategy` | 列舉 | `balanced` | `balanced`、`tutorial`、`entertainment` | 高光評分策略。 |
+| `--highlight-strategy` | 列舉 | `balanced` | `balanced`、`tutorial`、`entertainment` | 高光評分策略。`balanced` 是平均型，適合一般內容；`tutorial` 偏重資訊密度、句尾完整與教學重點；`entertainment` 偏重標點節奏、轉折感與較有戲劇性的片段。 |
 | `--highlight-reranker` | 列舉 | `none` | `none`、`narrative` | 候選高光的第二層重排 hook。 |
 | `--highlight-cue-weight` | 浮點數 | `None` | 任意非負數 | 覆寫 `cue_phrase` 權重。未填時沿用 strategy 預設。 |
 | `--highlight-pause-weight` | 浮點數 | `None` | 任意非負數 | 覆寫 `pause_boundary` 權重。未填時沿用 strategy 預設。 |
