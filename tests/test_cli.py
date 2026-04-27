@@ -36,7 +36,12 @@ def test_parser_defaults():
     assert args.highlight_count == 3
     assert args.highlight_min_duration == 15.0
     assert args.highlight_max_duration == 60.0
+    assert args.highlight_min_gap_seconds == 4.0
     assert args.highlight_padding_seconds == 1.5
+    assert args.highlight_strategy == "balanced"
+    assert args.highlight_reranker == "none"
+    assert args.highlight_cue_weight is None
+    assert args.highlight_pause_weight is None
     assert args.highlight_encoder == "auto"
     assert args.verbose is False
 
@@ -85,15 +90,30 @@ def test_parser_highlights():
         "12",
         "--highlight-max-duration",
         "45",
+        "--highlight-min-gap",
+        "6",
         "--highlight-padding",
         "2.0",
+        "--highlight-strategy",
+        "tutorial",
+        "--highlight-reranker",
+        "narrative",
+        "--highlight-cue-weight",
+        "0.24",
+        "--highlight-pause-weight",
+        "0.11",
     ])
     assert args.highlights is True
     assert args.highlight_output_dir == "clips"
     assert args.highlight_count == 5
     assert args.highlight_min_duration == 12.0
     assert args.highlight_max_duration == 45.0
+    assert args.highlight_min_gap_seconds == 6.0
     assert args.highlight_padding_seconds == 2.0
+    assert args.highlight_strategy == "tutorial"
+    assert args.highlight_reranker == "narrative"
+    assert args.highlight_cue_weight == 0.24
+    assert args.highlight_pause_weight == 0.11
 
 
 def test_parser_highlight_encoder_override():
@@ -168,7 +188,75 @@ def test_main_calls_pipeline_with_highlights(tmp_path):
     call_kwargs = mock_run.call_args[1]
     assert call_kwargs["export_highlights"] is True
     assert call_kwargs["highlight_count"] == 2
+    assert call_kwargs["highlight_strategy"] == "balanced"
+    assert call_kwargs["highlight_reranker"] == "none"
+    assert call_kwargs["highlight_weight_overrides"] is None
     assert call_kwargs["highlight_encoder"] == "auto"
+
+
+def test_main_passes_highlight_strategy_and_min_gap(tmp_path):
+    fake_video = tmp_path / "video.mp4"
+    fake_video.write_bytes(b"fake")
+    fake_srt = tmp_path / "video.srt"
+
+    with patch("autostr.pipeline.run", return_value=fake_srt) as mock_run:
+        ret = main([
+            str(fake_video),
+            "--highlights",
+            "--highlight-strategy",
+            "entertainment",
+            "--highlight-min-gap",
+            "6.5",
+        ])
+
+    assert ret == 0
+    mock_run.assert_called_once()
+    call_kwargs = mock_run.call_args[1]
+    assert call_kwargs["highlight_strategy"] == "entertainment"
+    assert call_kwargs["highlight_min_gap_seconds"] == 6.5
+
+
+def test_main_passes_highlight_weight_overrides(tmp_path):
+    fake_video = tmp_path / "video.mp4"
+    fake_video.write_bytes(b"fake")
+    fake_srt = tmp_path / "video.srt"
+
+    with patch("autostr.pipeline.run", return_value=fake_srt) as mock_run:
+        ret = main([
+            str(fake_video),
+            "--highlights",
+            "--highlight-cue-weight",
+            "0.25",
+            "--highlight-pause-weight",
+            "0.12",
+        ])
+
+    assert ret == 0
+    mock_run.assert_called_once()
+    call_kwargs = mock_run.call_args[1]
+    assert call_kwargs["highlight_weight_overrides"] == {
+        "cue_phrase": 0.25,
+        "pause_boundary": 0.12,
+    }
+
+
+def test_main_passes_highlight_reranker(tmp_path):
+    fake_video = tmp_path / "video.mp4"
+    fake_video.write_bytes(b"fake")
+    fake_srt = tmp_path / "video.srt"
+
+    with patch("autostr.pipeline.run", return_value=fake_srt) as mock_run:
+        ret = main([
+            str(fake_video),
+            "--highlights",
+            "--highlight-reranker",
+            "narrative",
+        ])
+
+    assert ret == 0
+    mock_run.assert_called_once()
+    call_kwargs = mock_run.call_args[1]
+    assert call_kwargs["highlight_reranker"] == "narrative"
 
 
 def test_main_passes_highlight_encoder_override(tmp_path):

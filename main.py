@@ -40,6 +40,15 @@ import sys
 from pathlib import Path
 
 
+def _build_highlight_weight_overrides(args: argparse.Namespace) -> dict[str, float] | None:
+    overrides: dict[str, float] = {}
+    if args.highlight_cue_weight is not None:
+        overrides["cue_phrase"] = args.highlight_cue_weight
+    if args.highlight_pause_weight is not None:
+        overrides["pause_boundary"] = args.highlight_pause_weight
+    return overrides or None
+
+
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
         prog="autostr",
@@ -105,11 +114,42 @@ def build_parser() -> argparse.ArgumentParser:
         help="Maximum length of a highlight clip in seconds.",
     )
     hl.add_argument(
+        "--highlight-min-gap",
+        type=float,
+        default=4.0,
+        dest="highlight_min_gap_seconds",
+        help="Minimum gap in seconds required between selected highlights.",
+    )
+    hl.add_argument(
         "--highlight-padding",
         type=float,
         default=1.5,
         dest="highlight_padding_seconds",
         help="Seconds to add before and after each highlight clip.",
+    )
+    hl.add_argument(
+        "--highlight-strategy",
+        default="balanced",
+        choices=["balanced", "tutorial", "entertainment"],
+        help="Named highlight scoring profile.",
+    )
+    hl.add_argument(
+        "--highlight-reranker",
+        default="none",
+        choices=["none", "narrative"],
+        help="Optional reranker hook to reorder scored highlight candidates.",
+    )
+    hl.add_argument(
+        "--highlight-cue-weight",
+        type=float,
+        default=None,
+        help="Override the cue_phrase scoring weight for highlights.",
+    )
+    hl.add_argument(
+        "--highlight-pause-weight",
+        type=float,
+        default=None,
+        help="Override the pause_boundary scoring weight for highlights.",
     )
     hl.add_argument(
         "--highlight-encoder",
@@ -216,6 +256,7 @@ def main(argv: list[str] | None = None) -> int:
     )
 
     from autostr.pipeline import run, run_missing_subtitles
+    highlight_weight_overrides = _build_highlight_weight_overrides(args)
 
     try:
         if args.batch:
@@ -253,7 +294,11 @@ def main(argv: list[str] | None = None) -> int:
                 highlight_count=args.highlight_count,
                 highlight_min_duration=args.highlight_min_duration,
                 highlight_max_duration=args.highlight_max_duration,
+                highlight_min_gap_seconds=args.highlight_min_gap_seconds,
                 highlight_padding_seconds=args.highlight_padding_seconds,
+                highlight_strategy=args.highlight_strategy,
+                highlight_reranker=args.highlight_reranker,
+                highlight_weight_overrides=highlight_weight_overrides,
                 highlight_encoder=args.highlight_encoder,
             )
 
@@ -290,7 +335,11 @@ def main(argv: list[str] | None = None) -> int:
             highlight_count=args.highlight_count,
             highlight_min_duration=args.highlight_min_duration,
             highlight_max_duration=args.highlight_max_duration,
+            highlight_min_gap_seconds=args.highlight_min_gap_seconds,
             highlight_padding_seconds=args.highlight_padding_seconds,
+            highlight_strategy=args.highlight_strategy,
+            highlight_reranker=args.highlight_reranker,
+            highlight_weight_overrides=highlight_weight_overrides,
             highlight_encoder=args.highlight_encoder,
         )
     except Exception as exc:

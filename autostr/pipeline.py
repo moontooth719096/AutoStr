@@ -75,11 +75,15 @@ def run(
     highlight_count: int = 3,
     highlight_min_duration: float = 15.0,
     highlight_max_duration: float = 60.0,
+    highlight_min_gap_seconds: float = 4.0,
     highlight_padding_seconds: float = 1.5,
+    highlight_strategy: str = "balanced",
+    highlight_reranker: str = "none",
+    highlight_weight_overrides: dict[str, float] | None = None,
     highlight_encoder: str = "auto",
 ) -> Path:
     from autostr.audio import extract_audio
-    from autostr.highlight import detect_highlights, export_highlight_clips
+    from autostr.highlight import analyze_highlights, export_highlight_clips
     from autostr.transcribe import transcribe
     from autostr.align import align
     from autostr.reflow import reflow
@@ -104,12 +108,17 @@ def run(
                 write_srt(entries, output_srt)
 
             logger.info("Step 1/1 – Detecting and exporting highlight clips …")
-            highlights = detect_highlights(
+            highlight_report = analyze_highlights(
                 entries,
                 target_count=highlight_count,
                 min_clip_duration=highlight_min_duration,
                 max_clip_duration=highlight_max_duration,
+                min_gap_seconds=highlight_min_gap_seconds,
+                strategy=highlight_strategy,
+                reranker=highlight_reranker,
+                weight_overrides=highlight_weight_overrides,
             )
+            highlights = highlight_report.selected
 
             if highlights:
                 if highlight_output_dir is None:
@@ -121,6 +130,7 @@ def run(
                     output_dir=highlight_output_dir,
                     padding_seconds=highlight_padding_seconds,
                     prefer_gpu=_prefer_gpu_for_highlights(device, highlight_encoder),
+                    manifest_metadata=highlight_report.manifest_metadata(),
                 )
                 logger.info("Exported %d highlight clip(s).", len(highlight_clips))
             else:
@@ -170,12 +180,17 @@ def run(
 
         if export_highlights:
             logger.info("Step 5/5 – Detecting and exporting highlight clips …")
-            highlights = detect_highlights(
-                segments,
+            highlight_report = analyze_highlights(
+                entries,
                 target_count=highlight_count,
                 min_clip_duration=highlight_min_duration,
                 max_clip_duration=highlight_max_duration,
+                min_gap_seconds=highlight_min_gap_seconds,
+                strategy=highlight_strategy,
+                reranker=highlight_reranker,
+                weight_overrides=highlight_weight_overrides,
             )
+            highlights = highlight_report.selected
 
             if highlights:
                 if highlight_output_dir is None:
@@ -187,6 +202,7 @@ def run(
                     output_dir=highlight_output_dir,
                     padding_seconds=highlight_padding_seconds,
                     prefer_gpu=_prefer_gpu_for_highlights(device, highlight_encoder),
+                    manifest_metadata=highlight_report.manifest_metadata(),
                 )
                 logger.info("Exported %d highlight clip(s).", len(highlight_clips))
             else:
@@ -255,7 +271,11 @@ def run_missing_subtitles(
     highlight_count: int = 3,
     highlight_min_duration: float = 15.0,
     highlight_max_duration: float = 60.0,
+    highlight_min_gap_seconds: float = 4.0,
     highlight_padding_seconds: float = 1.5,
+    highlight_strategy: str = "balanced",
+    highlight_reranker: str = "none",
+    highlight_weight_overrides: dict[str, float] | None = None,
     highlight_encoder: str = "auto",
 ) -> list[Path]:
     """Process every media file under *input_dir* that is missing a sibling SRT in *output_dir*."""
@@ -291,7 +311,11 @@ def run_missing_subtitles(
                 highlight_count=highlight_count,
                 highlight_min_duration=highlight_min_duration,
                 highlight_max_duration=highlight_max_duration,
+                highlight_min_gap_seconds=highlight_min_gap_seconds,
                 highlight_padding_seconds=highlight_padding_seconds,
+                highlight_strategy=highlight_strategy,
+                highlight_reranker=highlight_reranker,
+                highlight_weight_overrides=highlight_weight_overrides,
                 highlight_encoder=highlight_encoder,
             )
         )
