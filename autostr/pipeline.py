@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import logging
 import tempfile
 from pathlib import Path
@@ -23,16 +24,9 @@ def _prefer_gpu_for_highlights(device: str, highlight_encoder: str) -> bool:
     return device == "cuda"
 
 
-def _find_existing_subtitle_source(video_path: Path, output_srt: Path) -> Path | None:
-    candidates = [
-        output_srt,
-        video_path.with_suffix(".srt"),
-        _default_output_srt(video_path, export_highlights=False),
-    ]
-
-    for candidate in candidates:
-        if candidate.exists():
-            return candidate
+def _find_existing_subtitle_source(output_srt: Path) -> Path | None:
+    if output_srt.exists():
+        return output_srt
 
     return None
 
@@ -53,6 +47,50 @@ MEDIA_SUFFIXES = {
     ".flac",
     ".ogg",
 }
+
+
+def _has_exported_highlight_clip(media_path: Path, highlight_dir: Path) -> bool:
+    pattern = f"{media_path.stem}_highlight_*.mp4"
+    return any(highlight_dir.glob(pattern))
+
+
+def _no_highlights_marker_path(video_path: Path, highlight_dir: Path) -> Path:
+    return highlight_dir / f"{video_path.stem}_no_highlights.json"
+
+
+def _write_no_highlights_marker(
+    video_path: Path,
+    highlight_dir: Path,
+    highlight_report,
+) -> Path:
+    highlight_dir.mkdir(parents=True, exist_ok=True)
+    marker_path = _no_highlights_marker_path(video_path, highlight_dir)
+    payload = {
+        "source_video": str(video_path),
+        "status": "no_highlights",
+        "message": "No highlight clips met the selection criteria.",
+        "selection": {
+            "selected_count": len(getattr(highlight_report, "selected", [])),
+            "candidate_count": len(getattr(highlight_report, "candidates", [])),
+        },
+    }
+    if hasattr(highlight_report, "manifest_metadata"):
+        payload.update(highlight_report.manifest_metadata())
+    marker_path.write_text(
+        json.dumps(payload, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+    return marker_path
+
+
+def _clear_no_highlights_marker(video_path: Path, highlight_dir: Path) -> None:
+    marker_path = _no_highlights_marker_path(video_path, highlight_dir)
+    if marker_path.exists():
+        marker_path.unlink()
+
+
+def _has_no_highlights_marker(video_path: Path, highlight_dir: Path) -> bool:
+    return _no_highlights_marker_path(video_path, highlight_dir).exists()
 
 
 def run(
@@ -100,7 +138,8 @@ def run(
     logger.info("Output will be written to: %s", output_srt)
 
     if export_highlights:
-        existing_subtitle_source = _find_existing_subtitle_source(video_path, output_srt)
+        resolved_highlight_output_dir = Path(highlight_output_dir) if highlight_output_dir is not None else output_srt.parent
+        existing_subtitle_source = _find_existing_subtitle_source(output_srt)
         if existing_subtitle_source is not None:
             logger.info("Existing subtitles found at: %s", existing_subtitle_source)
             entries = read_srt(existing_subtitle_source)
@@ -121,20 +160,25 @@ def run(
             highlights = highlight_report.selected
 
             if highlights:
-                if highlight_output_dir is None:
-                    highlight_output_dir = output_srt.parent
+                _clear_no_highlights_marker(video_path, resolved_highlight_output_dir)
 
                 highlight_clips = export_highlight_clips(
                     source_video=video_path,
                     candidates=highlights,
-                    output_dir=highlight_output_dir,
+                    output_dir=resolved_highlight_output_dir,
                     padding_seconds=highlight_padding_seconds,
                     prefer_gpu=_prefer_gpu_for_highlights(device, highlight_encoder),
                     manifest_metadata=highlight_report.manifest_metadata(),
                 )
                 logger.info("Exported %d highlight clip(s).", len(highlight_clips))
             else:
+                marker_path = _write_no_highlights_marker(
+                    video_path,
+                    resolved_highlight_output_dir,
+                    highlight_report,
+                )
                 logger.info("No highlight clips met the selection criteria.")
+                logger.info("No-highlights marker written to: %s", marker_path)
 
             logger.info("Pipeline complete. Output: %s", output_srt)
             return output_srt
@@ -180,6 +224,7 @@ def run(
 
         if export_highlights:
             logger.info("Step 5/5 – Detecting and exporting highlight clips …")
+            resolved_highlight_output_dir = Path(highlight_output_dir) if highlight_output_dir is not None else output_srt.parent
             highlight_report = analyze_highlights(
                 entries,
                 target_count=highlight_count,
@@ -193,20 +238,25 @@ def run(
             highlights = highlight_report.selected
 
             if highlights:
-                if highlight_output_dir is None:
-                    highlight_output_dir = output_srt.parent
+                _clear_no_highlights_marker(video_path, resolved_highlight_output_dir)
 
                 highlight_clips = export_highlight_clips(
                     source_video=video_path,
                     candidates=highlights,
-                    output_dir=highlight_output_dir,
+                    output_dir=resolved_highlight_output_dir,
                     padding_seconds=highlight_padding_seconds,
                     prefer_gpu=_prefer_gpu_for_highlights(device, highlight_encoder),
                     manifest_metadata=highlight_report.manifest_metadata(),
                 )
                 logger.info("Exported %d highlight clip(s).", len(highlight_clips))
             else:
+                marker_path = _write_no_highlights_marker(
+                    video_path,
+                    resolved_highlight_output_dir,
+                    highlight_report,
+                )
                 logger.info("No highlight clips met the selection criteria.")
+                logger.info("No-highlights marker written to: %s", marker_path)
 
     logger.info("Pipeline complete. Output: %s", output_srt)
     return output_srt
@@ -242,10 +292,15 @@ def find_missing_subtitle_jobs_with_mode(
 
         relative_path = resolved_media_path.relative_to(resolved_input_dir)
         if export_highlights:
-            target_srt = output_dir / relative_path.parent / f"{relative_path.stem}_highlights" / f"{relative_path.stem}.srt"
+            highlight_dir = output_dir / relative_path.parent / f"{relative_path.stem}_highlights"
+            target_srt = highlight_dir / f"{relative_path.stem}.srt"
         else:
             target_srt = output_dir / relative_path.with_suffix(".srt")
-        if not target_srt.exists():
+        is_complete = target_srt.exists()
+        if export_highlights and is_complete:
+            is_complete = _has_exported_highlight_clip(media_path, highlight_dir) or _has_no_highlights_marker(media_path, highlight_dir)
+
+        if not is_complete:
             jobs.append((media_path, target_srt))
 
     return jobs

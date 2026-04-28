@@ -107,7 +107,8 @@ docker run --rm \
   -v /path/to/output:/output \
   autostr /input/input.mp4 --highlights
 ```
-如果同一支影片的字幕已經存在，highlight 模式會直接重用既有字幕，不會再重新抽音訊與轉錄一次。
+如果 highlight 模式的目標字幕檔已經存在，會直接重用那份字幕，不會再重新抽音訊與轉錄一次；不會再回頭檢查 input 同層或 /output 根目錄的舊字幕。
+如果最後沒有任何高光片段入選，輸出資料夾裡會留下 `<影片名>_no_highlights.json`，裡面會明確標示 `status: no_highlights`，表示這支影片有跑完高光流程，只是沒有符合條件的片段。
 
 ### 要用不同高光策略
 
@@ -179,6 +180,7 @@ docker run --rm \
 ```
 
 批次模式會掃描 `/input` 底下的影片或音訊檔，找出還沒有對應字幕的檔案再依序處理。
+如果你是用 `--batch --highlights`，則會把「高光字幕檔存在且至少已有一個高光影片 clip」或「存在 `<影片名>_no_highlights.json` 標記檔」視為完成；只有字幕、沒有 clip、也沒有標記檔的資料夾會重新排入處理。
 如果你要使用 `--batch`，就不要再另外加單一檔案路徑，例如 `/input/input.mp4`。
 
 ---
